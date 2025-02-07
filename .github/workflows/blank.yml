@@ -44,9 +44,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Set Execution Permissions
-        run: chmod +x checkers/23/*.py checkers/3.8/*.py
-
       - name: Echo - Environment Variables
         run: |
           echo "PATCH_NAME: ${{ env.PATCH_NAME }}"
