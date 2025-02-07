@@ -1,0 +1,56 @@
+name: Test Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      PATCH_NAME:
+        description: 'Inform the patch number'
+        required: false
+        default: 'none'
+      RELEASE:
+        description: 'Inform the release'
+        required: false
+        default: 'QBL.d'
+      REFERENCE:
+        description: 'Optionally inform reference baseline'
+        required: false
+        default: 'none'
+      DEBUG:
+        description: 'Inform the debug level'
+        required: false
+        default: 'FALSE'
+      LIB_BRANCH:
+        description: 'Inform the LIB BRANCH to bind'
+        required: false
+        default: 'master'
+
+env:
+  PATCH_NAME: ${{ github.event.inputs.PATCH_NAME || 'none' }}
+  RELEASE: ${{ github.event.inputs.RELEASE || 'QBL.d' }}
+  REFERENCE: ${{ github.event.inputs.REFERENCE || 'none' }}
+  DEBUG: ${{ github.event.inputs.DEBUG || 'FALSE' }}
+  LIB_BRANCH: ${{ github.event.inputs.LIB_BRANCH || 'master' }}
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest  # Equivalent to "agent { label "simgt-fullclient-2" }"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set Execution Permissions
+        run: chmod +x checkers/23/*.py checkers/3.8/*.py
+
+      - name: Echo - Environment Variables
+        run: |
+          echo "PATCH_NAME: ${{ env.PATCH_NAME }}"
+          echo "RELEASE: ${{ env.RELEASE }}"
+          echo "REFERENCE: ${{ env.REFERENCE }}"
+          echo "DEBUG: ${{ env.DEBUG }}"
+          echo "LIB_BRANCH: ${{ env.LIB_BRANCH }}"
