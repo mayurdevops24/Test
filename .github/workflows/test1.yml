@@ -27,6 +27,16 @@ jobs:
           echo "sdev_shared location: $(which sdev_shared)"
         continue-on-error: true
 
+      # Capture and Upload Dependencies Installation Logs
+      - name: Upload Dependencies Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: install-dependencies-logs
+          path: logs/
+          if-no-files-found: warn
+          compression-level: 6
+          overwrite: false
+
   # Job 2: Capture stdout and stderr logs
   capture-output:
     needs: install-dependencies
@@ -41,6 +51,16 @@ jobs:
           echo "Executing sample command..."
           ls -l > logs/stdout.log 2> logs/stderr.log
 
+      # Upload Output Logs as Artifact
+      - name: Upload Command Output Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: command-output-logs
+          path: logs/
+          if-no-files-found: warn
+          compression-level: 6
+          overwrite: false
+
   # Job 3: Store Workflow Metadata
   store-metadata:
     needs: install-dependencies
@@ -54,6 +74,16 @@ jobs:
           echo "Event Name: $GITHUB_EVENT_NAME" >> logs/metadata/workflow_metadata.log
           echo "Commit SHA: $GITHUB_SHA" >> logs/metadata/workflow_metadata.log
 
+      # Upload Metadata as Artifact
+      - name: Upload Metadata Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-metadata
+          path: logs/metadata/
+          if-no-files-found: warn
+          compression-level: 6
+          overwrite: false
+
   # Job 4: Record Execution Timing
   record-timing:
     needs: capture-output
@@ -61,4 +91,120 @@ jobs:
     steps:
       - name: Record Timing Information
         run: |
-  
+          echo "Start time: $(date)" > logs/timing.log
+          SECONDS=0
+          sleep 2  # Simulating execution
+          echo "Step duration: ${SECONDS}s" >> logs/timing.log
+
+      # Upload Timing Logs as Artifact
+      - name: Upload Timing Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: timing-logs
+          path: logs/timing.log
+          if-no-files-found: warn
+          compression-level: 6
+          overwrite: false
+
+  # Job 5: Enable Live Logging for Debugging
+  enable-live-logging:
+    needs: capture-output
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable Live Logging
+        run: |
+          tail -f logs/stdout.log &
+
+      # Upload Live Logs (optional)
+      - name: Upload Live Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-logs
+          path: logs/stdout.log
+          if-no-files-found: warn
+          compression-level: 6
+          overwrite: false
+
+  # Job 6: Set Verbosity Level
+  set-verbosity:
+    needs: capture-output
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Verbosity Level
+        run: |
+          VERBOSITY_LEVEL="INFO"
+          echo "Logging at level: $VERBOSITY_LEVEL" >> logs/verbosity.log
+
+      # Upload Verbosity Level Logs as Artifact
+      - name: Upload Verbosity Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: verbosity-logs
+          path: logs/verbosity.log
+          if-no-files-found: warn
+          compression-level: 6
+          overwrite: false
+
+  # Job 7: Identify Incoming Project
+  identify-project:
+    needs: capture-output
+    runs-on: ubuntu-latest
+    steps:
+      - name: Identify Incoming Project
+        run: |
+          echo "Incoming Project: $GITHUB_REPOSITORY" > logs/project_info.log
+
+      # Upload Project Info Logs as Artifact
+      - name: Upload Project Info Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-info-logs
+          path: logs/project_info.log
+          if-no-files-found: warn
+          compression-level: 6
+          overwrite: false
+
+  # Job 8: Check Status of Outstanding Instances
+  check-instance-status:
+    needs: capture-output
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Outstanding Instances
+        run: |
+          curl -X GET "https://api.github.com/repos/${{ github.repository }}/actions/runs" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" > logs/instances_status.json
+
+      # Upload Instance Status Logs as Artifact
+      - name: Upload Instance Status Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: instance-status-logs
+          path: logs/instances_status.json
+          if-no-files-found: warn
+          compression-level: 6
+          overwrite: false
+
+  # Job 9: Trigger a New Workflow Instance Programmatically
+  trigger-instance:
+    needs: check-instance-status
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger New Workflow Instance
+        run: |
+          curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -d '{"ref": "main"}' \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/full_pipeline.yml/dispatches
+
+  # Job 10: Upload All Logs and Artifacts
+  upload-all-artifacts:
+    needs: [install-dependencies, capture-output, store-metadata, record-timing, enable-live-logging, set-verbosity, identify-project, check-instance-status, trigger-instance]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload All Logs as Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-logs
+          path: logs/
+          if-no-files-found: warn
+          compression-level: 6
+          overwrite: false
