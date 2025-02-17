@@ -1,0 +1,26 @@
+name: Fetch Data from Website
+
+on:
+  workflow_dispatch:  # Trigger manually
+  push:
+    branches:
+      - main  # You can also trigger it on other branches like 'feature/*' or any branch you want.
+
+jobs:
+  fetch-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Fetch data from the website using curl
+        run: |
+          # Use curl to fetch data from JSONPlaceholder API and save it to a file
+          curl -o website_data.json https://jsonplaceholder.typicode.com/posts
+          
+      - name: Upload fetched data as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-data
+          path: website_data.json
+          if-no-files-found: warn
