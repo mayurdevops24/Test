@@ -1,0 +1,64 @@
+name: Full-Pipeline-Execution
+
+on:
+  workflow_dispatch:  # Trigger manually
+  push:
+    branches:
+      - main  # Adjust as needed
+
+jobs:
+  # Job 1: Install Dependencies (cleartool, sdev_shared)
+  install-dependencies:
+    runs-on: ubuntu-latest
+    outputs:
+      cleartool-path: ${{ steps.cleartool-path.outputs.path }}
+      sdevshared-path: ${{ steps.sdevshared-path.outputs.path }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install cleartool and sdev_shared
+        id: install-deps
+        run: |
+          sudo apt update
+          sudo apt install -y cleartool sdev_shared
+          echo "cleartool location: $(which cleartool)"
+          echo "sdev_shared location: $(which sdev_shared)"
+        continue-on-error: true
+
+  # Job 2: Capture stdout and stderr logs
+  capture-output:
+    needs: install-dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Run Sample Command and Capture Output
+        run: |
+          mkdir -p logs
+          echo "Executing sample command..."
+          ls -l > logs/stdout.log 2> logs/stderr.log
+
+  # Job 3: Store Workflow Metadata
+  store-metadata:
+    needs: install-dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Store Workflow Metadata
+        run: |
+          mkdir -p logs/metadata
+          echo "Workflow ID: $GITHUB_RUN_ID" > logs/metadata/workflow_metadata.log
+          echo "Repository: $GITHUB_REPOSITORY" >> logs/metadata/workflow_metadata.log
+          echo "Event Name: $GITHUB_EVENT_NAME" >> logs/metadata/workflow_metadata.log
+          echo "Commit SHA: $GITHUB_SHA" >> logs/metadata/workflow_metadata.log
+
+  # Job 4: Record Execution Timing
+  record-timing:
+    needs: capture-output
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record Timing Information
+        run: |
+  
