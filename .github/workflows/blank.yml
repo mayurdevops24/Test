@@ -31,8 +31,15 @@ jobs:
           ls -l >> logs/actions_output.log 2>> logs/actions_error.log
           echo "Another example command" >> logs/actions_output.log 2>> logs/actions_error.log
 
+      - name: Debug Log Files
+        run: ls -l logs/
+
       - name: Upload Metadata & Logs as Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: workflow-metadata-logs
-         
+          path: logs/  # Ensure this path exists
+          if-no-files-found: warn
+          compression-level: 6
+          overwrite: false
+          include-hidden-files: false
