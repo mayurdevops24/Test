@@ -1,16 +1,23 @@
-name: Store Workflow Metadata & Logs
+name: Full-Pipeline-Execution
 
 on:
+  workflow_dispatch:  # Manual trigger
   push:
     branches:
-      - main
+      - main  # Adjust as needed
 
 jobs:
-  store-metadata:
+  execute-pipeline:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Install Required Dependencies
+        run: |
+          echo "Installing required dependencies..."
+          sudo apt update && sudo apt install -y cleartool  # Example dependency
+          # Add installation steps for `sdev_shared` if needed
 
       - name: Capture Workflow Metadata
         run: |
@@ -25,21 +32,13 @@ jobs:
           echo "Commit SHA: $GITHUB_SHA" >> logs/metadata.log
           echo "Branch: $GITHUB_REF_NAME" >> logs/metadata.log
 
-      - name: Capture stdout & stderr of Commands
+      - name: Store stdout & stderr of Commands
         run: |
-          echo "Executing sample command..."
+          echo "Executing commands..."
+          mkdir -p logs
           ls -l >> logs/actions_output.log 2>> logs/actions_error.log
           echo "Another example command" >> logs/actions_output.log 2>> logs/actions_error.log
 
-      - name: Debug Log Files
-        run: ls -l logs/
-
-      - name: Upload Metadata & Logs as Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: workflow-metadata-logs
-          path: logs/  # Ensure this path exists
-          if-no-files-found: warn
-          compression-level: 6
-          overwrite: false
-          include-hidden-files: false
+      - name: Record Workflow & Action Timing
+        run: |
+          echo "Record
