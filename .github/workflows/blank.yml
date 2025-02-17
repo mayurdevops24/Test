@@ -1,53 +1,33 @@
-name: Test Pipeline
+name: Capture Workflow Metadata
 
 on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
-    inputs:
-      PATCH_NAME:
-        description: 'Inform the patch number'
-        required: false
-        default: 'none'
-      RELEASE:
-        description: 'Inform the release'
-        required: false
-        default: 'QBL.d'
-      REFERENCE:
-        description: 'Optionally inform reference baseline'
-        required: false
-        default: 'none'
-      DEBUG:
-        description: 'Inform the debug level'
-        required: false
-        default: 'FALSE'
-      LIB_BRANCH:
-        description: 'Inform the LIB BRANCH to bind'
-        required: false
-        default: 'master'
-
-env:
-  PATCH_NAME: ${{ github.event.inputs.PATCH_NAME || 'none' }}
-  RELEASE: ${{ github.event.inputs.RELEASE || 'QBL.d' }}
-  REFERENCE: ${{ github.event.inputs.REFERENCE || 'none' }}
-  DEBUG: ${{ github.event.inputs.DEBUG || 'FALSE' }}
-  LIB_BRANCH: ${{ github.event.inputs.LIB_BRANCH || 'master' }}
 
 jobs:
-  setup:
-    runs-on: ubuntu-latest  # Equivalent to "agent { label "simgt-fullclient-2" }"
+  store-metadata:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Echo - Environment Variables
+      - name: Capture Workflow Metadata
         run: |
-          echo "PATCH_NAME: ${{ env.PATCH_NAME }}"
-          echo "RELEASE: ${{ env.RELEASE }}"
-          echo "REFERENCE: ${{ env.REFERENCE }}"
-          echo "DEBUG: ${{ env.DEBUG }}"
-          echo "LIB_BRANCH: ${{ env.LIB_BRANCH }}"
+          mkdir -p logs
+          echo "Workflow Run ID: $GITHUB_RUN_ID" > logs/metadata.log
+          echo "Repository: $GITHUB_REPOSITORY" >> logs/metadata.log
+          echo "Triggering Event: $GITHUB_EVENT_NAME" >> logs/metadata.log
+          echo "Workflow Name: $GITHUB_WORKFLOW" >> logs/metadata.log
+          echo "Job Name: $GITHUB_JOB" >> logs/metadata.log
+          echo "Runner OS: $RUNNER_OS" >> logs/metadata.log
+          echo "Run Attempt: $GITHUB_RUN_ATTEMPT" >> logs/metadata.log
+          echo "Commit SHA: $GITHUB_SHA" >> logs/metadata.log
+          echo "Branch: $GITHUB_REF_NAME" >> logs/metadata.log
+
+      - name: Capture Workflow Logs
+        run: |
+          echo "Capturing GitHub Actions logs..."
+          journalctl --user --no-pager --since "5 minutes ago" > logs/actions.log || true
+
+      
