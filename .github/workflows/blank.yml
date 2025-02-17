@@ -1,4 +1,4 @@
-name: Capture Workflow Metadata
+name: Store Workflow Metadata & Logs
 
 on:
   push:
@@ -25,9 +25,14 @@ jobs:
           echo "Commit SHA: $GITHUB_SHA" >> logs/metadata.log
           echo "Branch: $GITHUB_REF_NAME" >> logs/metadata.log
 
-      - name: Capture Workflow Logs
+      - name: Capture stdout & stderr of Commands
         run: |
-          echo "Capturing GitHub Actions logs..."
-          journalctl --user --no-pager --since "5 minutes ago" > logs/actions.log || true
+          echo "Executing sample command..."
+          ls -l >> logs/actions_output.log 2>> logs/actions_error.log
+          echo "Another example command" >> logs/actions_output.log 2>> logs/actions_error.log
 
-      
+      - name: Upload Metadata & Logs as Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-metadata-logs
+         
