@@ -1,24 +1,66 @@
-name: Comprehensive CI Pipeline
+name: Full Integrated Pipeline
 
 on:
   workflow_dispatch:
     inputs:
-      project:
-        description: 'Project Name'
-        required: true
       verbosity:
-        description: 'Logging Level (info, debug, error)'
+        description: 'Logging verbosity level'
+        required: false
         default: 'info'
-  repository_dispatch:
-    types: [trigger-pipeline]
 
 jobs:
-  setup:
+  build-and-log:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ github.repository }}
+      VERBOSITY: ${{ inputs.verbosity }}
+      LOG_DIR: logs
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      - name: Install Dependencies
+
+      - name: Setup Environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cleart
+          mkdir -p $LOG_DIR
+          echo "Project ID: $PROJECT_ID" > $LOG_DIR/metadata.txt
+          echo "Run ID: $GITHUB_RUN_ID" >> $LOG_DIR/metadata.txt
+          echo "Workflow: $GITHUB_WORKFLOW" >> $LOG_DIR/metadata.txt
+          echo "Job: $GITHUB_JOB" >> $LOG_DIR/metadata.txt
+
+      - name: Capture Command Outputs (stdout & stderr)
+        run: |
+          echo "Running example commands with logging..."
+          { echo "Starting build"; sleep 2; echo "Build complete"; } > $LOG_DIR/stdout.log 2> $LOG_DIR/stderr.log
+
+      - name: Capture Timing Information
+        run: |
+          { time sleep 2; } 2> $LOG_DIR/timing.log
+
+      - name: Live Logging with Verbosity
+        run: |
+          if [ "$VERBOSITY" = "debug" ]; then
+            echo "DEBUG: Verbose output enabled" >> $LOG_DIR/stdout.log
+          fi
+
+      - name: Upload Logs and Metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-logs
+          path: $LOG_DIR/
+
+      - name: Trigger Another Workflow Programmatically
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          event-type: trigger-instance
+          client-payload: '{"ref": "${{ github.ref }}"}'
+
+      - name: Read Workflow Status Programmatically
+        run: |
+          gh run list --limit 5 > $LOG_DIR/workflow-status.log
+
+      - name: Upload Workflow Status
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-status
+          path: $LOG_DIR/workflow-status.log
