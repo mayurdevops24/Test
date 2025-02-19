@@ -1,0 +1,48 @@
+
+name: Multi-Action Logging with Artifacts
+
+on: [push]
+
+jobs:
+  action-one:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Action One
+        run: |
+          mkdir -p logs
+          echo "Action One started at $(date)" >> logs/action-one.log
+          echo "Processing Action One..." >> logs/action-one.log
+          echo "Action One completed at $(date)" >> logs/action-one.log
+      - name: Upload Action One Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: action-one-logs
+          path: logs/action-one.log
+
+  action-two:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Action Two
+        run: |
+          mkdir -p logs
+          echo "Action Two started at $(date)" >> logs/action-two.log
+          echo "Running tasks for Action Two..." >> logs/action-two.log
+          echo "Action Two completed at $(date)" >> logs/action-two.log
+      - name: Upload Action Two Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: action-two-logs
+          path: logs/action-two.log
+
+  collect-logs:
+    needs: [action-one, action-two]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Upload Combined Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-action-logs
+          path: .
