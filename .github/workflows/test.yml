@@ -1,0 +1,24 @@
+name: Comprehensive CI Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 'Project Name'
+        required: true
+      verbosity:
+        description: 'Logging Level (info, debug, error)'
+        default: 'info'
+  repository_dispatch:
+    types: [trigger-pipeline]
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cleart
