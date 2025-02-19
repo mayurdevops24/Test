@@ -1,210 +1,66 @@
-name: Full-Pipeline-Execution
+name: Full Integrated Pipeline
 
 on:
-  workflow_dispatch:  # Trigger manually
-  push:
-    branches:
-      - main  # Adjust as needed
+  workflow_dispatch:
+    inputs:
+      verbosity:
+        description: 'Logging verbosity level'
+        required: false
+        default: 'info'
 
 jobs:
-  # Job 1: Install Dependencies (cleartool, sdev_shared)
-  install-dependencies:
+  build-and-log:
     runs-on: ubuntu-latest
-    outputs:
-      cleartool-path: ${{ steps.cleartool-path.outputs.path }}
-      sdevshared-path: ${{ steps.sdevshared-path.outputs.path }}
+    env:
+      PROJECT_ID: ${{ github.repository }}
+      VERBOSITY: ${{ inputs.verbosity }}
+      LOG_DIR: logs
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install cleartool and sdev_shared
-        id: install-deps
+      - name: Setup Environment
         run: |
-          sudo apt update
-          sudo apt install -y cleartool sdev_shared
-          echo "cleartool location: $(which cleartool)"
-          echo "sdev_shared location: $(which sdev_shared)"
-        continue-on-error: true
+          mkdir -p $LOG_DIR
+          echo "Project ID: $PROJECT_ID" > $LOG_DIR/metadata.txt
+          echo "Run ID: $GITHUB_RUN_ID" >> $LOG_DIR/metadata.txt
+          echo "Workflow: $GITHUB_WORKFLOW" >> $LOG_DIR/metadata.txt
+          echo "Job: $GITHUB_JOB" >> $LOG_DIR/metadata.txt
 
-      # Capture and Upload Dependencies Installation Logs
-      - name: Upload Dependencies Logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: install-dependencies-logs
-          path: logs/
-          if-no-files-found: warn
-          compression-level: 6
-          overwrite: false
-
-  # Job 2: Capture stdout and stderr logs
-  capture-output:
-    needs: install-dependencies
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Run Sample Command and Capture Output
+      - name: Capture Command Outputs (stdout & stderr)
         run: |
-          mkdir -p logs
-          echo "Executing sample command..."
-          ls -l > logs/stdout.log 2> logs/stderr.log
+          echo "Running example commands with logging..."
+          { echo "Starting build"; sleep 2; echo "Build complete"; } > $LOG_DIR/stdout.log 2> $LOG_DIR/stderr.log
 
-      # Upload Output Logs as Artifact
-      - name: Upload Command Output Logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: command-output-logs
-          path: logs/
-          if-no-files-found: warn
-          compression-level: 6
-          overwrite: false
-
-  # Job 3: Store Workflow Metadata
-  store-metadata:
-    needs: install-dependencies
-    runs-on: ubuntu-latest
-    steps:
-      - name: Store Workflow Metadata
+      - name: Capture Timing Information
         run: |
-          mkdir -p logs/metadata
-          echo "Workflow ID: $GITHUB_RUN_ID" > logs/metadata/workflow_metadata.log
-          echo "Repository: $GITHUB_REPOSITORY" >> logs/metadata/workflow_metadata.log
-          echo "Event Name: $GITHUB_EVENT_NAME" >> logs/metadata/workflow_metadata.log
-          echo "Commit SHA: $GITHUB_SHA" >> logs/metadata/workflow_metadata.log
+          { time sleep 2; } 2> $LOG_DIR/timing.log
 
-      # Upload Metadata as Artifact
-      - name: Upload Metadata Logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: workflow-metadata
-          path: logs/metadata/
-          if-no-files-found: warn
-          compression-level: 6
-          overwrite: false
-
-  # Job 4: Record Execution Timing
-  record-timing:
-    needs: capture-output
-    runs-on: ubuntu-latest
-    steps:
-      - name: Record Timing Information
+      - name: Live Logging with Verbosity
         run: |
-          echo "Start time: $(date)" > logs/timing.log
-          SECONDS=0
-          sleep 2  # Simulating execution
-          echo "Step duration: ${SECONDS}s" >> logs/timing.log
+          if [ "$VERBOSITY" = "debug" ]; then
+            echo "DEBUG: Verbose output enabled" >> $LOG_DIR/stdout.log
+          fi
 
-      # Upload Timing Logs as Artifact
-      - name: Upload Timing Logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: timing-logs
-          path: logs/timing.log
-          if-no-files-found: warn
-          compression-level: 6
-          overwrite: false
-
-  # Job 5: Enable Live Logging for Debugging
-  enable-live-logging:
-    needs: capture-output
-    runs-on: ubuntu-latest
-    steps:
-      - name: Enable Live Logging
-        run: |
-          tail -f logs/stdout.log &
-
-      # Upload Live Logs (optional)
-      - name: Upload Live Logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: live-logs
-          path: logs/stdout.log
-          if-no-files-found: warn
-          compression-level: 6
-          overwrite: false
-
-  # Job 6: Set Verbosity Level
-  set-verbosity:
-    needs: capture-output
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set Verbosity Level
-        run: |
-          VERBOSITY_LEVEL="INFO"
-          echo "Logging at level: $VERBOSITY_LEVEL" >> logs/verbosity.log
-
-      # Upload Verbosity Level Logs as Artifact
-      - name: Upload Verbosity Logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: verbosity-logs
-          path: logs/verbosity.log
-          if-no-files-found: warn
-          compression-level: 6
-          overwrite: false
-
-  # Job 7: Identify Incoming Project
-  identify-project:
-    needs: capture-output
-    runs-on: ubuntu-latest
-    steps:
-      - name: Identify Incoming Project
-        run: |
-          echo "Incoming Project: $GITHUB_REPOSITORY" > logs/project_info.log
-
-      # Upload Project Info Logs as Artifact
-      - name: Upload Project Info Logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: project-info-logs
-          path: logs/project_info.log
-          if-no-files-found: warn
-          compression-level: 6
-          overwrite: false
-
-  # Job 8: Check Status of Outstanding Instances
-  check-instance-status:
-    needs: capture-output
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check Outstanding Instances
-        run: |
-          curl -X GET "https://api.github.com/repos/${{ github.repository }}/actions/runs" \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" > logs/instances_status.json
-
-      # Upload Instance Status Logs as Artifact
-      - name: Upload Instance Status Logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: instance-status-logs
-          path: logs/instances_status.json
-          if-no-files-found: warn
-          compression-level: 6
-          overwrite: false
-
-  # Job 9: Trigger a New Workflow Instance Programmatically
-  trigger-instance:
-    needs: check-instance-status
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger New Workflow Instance
-        run: |
-          curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -d '{"ref": "main"}' \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/full_pipeline.yml/dispatches
-
-  # Job 10: Upload All Logs and Artifacts
-  upload-all-artifacts:
-    needs: [install-dependencies, capture-output, store-metadata, record-timing, enable-live-logging, set-verbosity, identify-project, check-instance-status, trigger-instance]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Upload All Logs as Artifacts
+      - name: Upload Logs and Metadata
         uses: actions/upload-artifact@v4
         with:
           name: pipeline-logs
-          path: logs/
-          if-no-files-found: warn
-          compression-level: 6
-          overwrite: false
+          path: $LOG_DIR/
+
+      - name: Trigger Another Workflow Programmatically
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          event-type: trigger-instance
+          client-payload: '{"ref": "${{ github.ref }}"}'
+
+      - name: Read Workflow Status Programmatically
+        run: |
+          gh run list --limit 5 > $LOG_DIR/workflow-status.log
+
+      - name: Upload Workflow Status
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-status
+          path: $LOG_DIR/workflow-status.log
