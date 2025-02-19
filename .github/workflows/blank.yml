@@ -1,88 +1,26 @@
-name: Full-Pipeline-Execution
+name: Run Python Action with Loguru
 
-on:
-  workflow_dispatch:  # Manual trigger
-  push:
-    branches:
-      - main  # Adjust as needed
+on: [push]
 
 jobs:
-  execute-pipeline:
+  run-action:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Required Dependencies
-        run: |
-          echo "Installing required dependencies..."
-          sudo apt update
-          sudo apt install -y clearcase || echo "ClearCase package not found in APT. Manual installation may be required."
-          which cleartool || echo "Cleartool is not installed!"
-          cleartool -version || echo "Failed to check cleartool version!"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
 
-      - name: Capture Workflow Metadata
-        run: |
-          mkdir -p logs
-          echo "Workflow Run ID: $GITHUB_RUN_ID" > logs/metadata.log
-          echo "Repository: $GITHUB_REPOSITORY" >> logs/metadata.log
-          echo "Triggering Event: $GITHUB_EVENT_NAME" >> logs/metadata.log
-          echo "Workflow Name: $GITHUB_WORKFLOW" >> logs/metadata.log
-          echo "Job Name: $GITHUB_JOB" >> logs/metadata.log
-          echo "Runner OS: $RUNNER_OS" >> logs/metadata.log
-          echo "Run Attempt: $GITHUB_RUN_ATTEMPT" >> logs/metadata.log
-          echo "Commit SHA: $GITHUB_SHA" >> logs/metadata.log
-          echo "Branch: $GITHUB_REF_NAME" >> logs/metadata.log
+      - name: Install dependencies
+        run: pip install loguru
 
-      - name: Store stdout & stderr of Commands
-        run: |
-          echo "Executing commands..."
-          mkdir -p logs
-          ls -l >> logs/actions_output.log 2>> logs/actions_error.log
-          echo "Another example command" >> logs/actions_output.log 2>> logs/actions_error.log
+      - name: Run Python script
+        run: python action.py
 
-      - name: Record Workflow & Action Timing
-        run: |
-          echo "Recording timestamps..."
-          echo "Workflow started at: $(date)" > logs/timing.log
-          SECONDS=0
-          sleep 2  # Simulating execution
-          echo "Step 1 duration: ${SECONDS}s" >> logs/timing.log
-
-      - name: Enable Live Logging for Debugging
-        run: |
-          echo "Enabling live logging..."
-          tail -f logs/actions_output.log &
-
-      - name: Support Different Verbosity Levels
-        run: |
-          LOG_LEVEL="INFO"
-          echo "Setting verbosity level to: $LOG_LEVEL" >> logs/verbosity.log
-
-      - name: Identify Incoming Project Execution
-        run: |
-          echo "Project: ${GITHUB_REPOSITORY}" > logs/project_info.log
-          echo "Execution ID: $GITHUB_RUN_ID" >> logs/project_info.log
-
-      - name: Read Outstanding Instances Programmatically
-        run: |
-          echo "Reading outstanding instances..."
-          curl -X GET "https://api.github.com/repos/${{ github.repository }}/actions/runs" -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" > logs/instances_status.json
-
-      - name: Trigger Instance Programmatically
-        run: |
-          echo "Triggering a new workflow instance..."
-          curl -X POST -H "Accept: application/vnd.github.v3+json" \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          https://api.github.com/repos/${{ github.repository }}/actions/workflows/full_pipeline.yml/dispatches \
-          -d '{"ref": "main"}'
-
-      - name: Upload Logs to Artifacts
+      - name: Upload log file
         uses: actions/upload-artifact@v4
         with:
-          name: workflow-logs
-          path: logs/
-          if-no-files-found: warn
-          compression-level: 6
-          overwrite: false
-          include-hidden-files: false
+          name: action-logs
+          path: action_log.log
