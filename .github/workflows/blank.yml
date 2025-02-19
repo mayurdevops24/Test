@@ -1,26 +1,47 @@
-name: Run Python Action with Loguru
+name: Multi-Action Logging
 
 on: [push]
 
 jobs:
-  run-action:
+  action-one:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Run Action One
+        run: |
+          echo "::group::Action One Logs"
+          echo "Starting Action One"
+          echo "Processing..."
+          echo "Action One completed successfully."
+          echo "::endgroup::"
+      - name: Save logs
+        run: |
+          mkdir -p logs
+          echo "Action One log content" > logs/action-one.log
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
+  action-two:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Action Two
+        run: |
+          echo "::group::Action Two Logs"
+          echo "Starting Action Two"
+          echo "Performing tasks..."
+          echo "Action Two completed."
+          echo "::endgroup::"
+      - name: Save logs
+        run: |
+          mkdir -p logs
+          echo "Action Two log content" > logs/action-two.log
 
-      - name: Install dependencies
-        run: pip install loguru
-
-      - name: Run Python script
-        run: python action.py
-
-      - name: Upload log file
+  upload-logs:
+    needs: [action-one, action-two]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Upload Combined Logs
         uses: actions/upload-artifact@v4
         with:
-          name: action-logs
-          path: action_log.log
+          name: all-action-logs
+          path: logs/
