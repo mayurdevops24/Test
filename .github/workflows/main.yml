@@ -1,53 +1,118 @@
-name: CI with Comprehensive Logging
+name: Mayur
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
     inputs:
-      project_id:
-        description: 'Project Identifier'
+      project:
+        description: 'Project identifier'
         required: true
-        default: 'unknown'
+      verbosity:
+        description: 'Logging verbosity level (info, debug, error)'
+        required: false
+        default: 'info'
+  repository_dispatch:
+    types: [trigger-instance]
 
 env:
-  LOG_LEVEL: DEBUG  # Change as needed (DEBUG, INFO, WARN, ERROR)
+  LOG_DIR: logs
+  PERMANENT_STORAGE: /mnt/data/storage  # Replace with your actual storage solution
 
 jobs:
-  build:
+  setup:
     runs-on: ubuntu-latest
-    env:
-      PROJECT_ID: ${{ github.event.inputs.project_id }}
-      LOG_DIR: logs
+    outputs:
+      start-time: ${{ steps.start-time.outputs.time }}
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Install Dependencies
-        run: ./scripts/log-wrapper.sh "install" npm install
-
-      - name: Run Tests
-        run: ./scripts/log-wrapper.sh "test" npm test
-
-      - name: Run Build
-        run: ./scripts/log-wrapper.sh "build" npm run build
-
-      - name: Save Workflow Metadata
+      - name: Install dependencies
         run: |
-          echo "{
-            \"workflow\": \"${{ github.workflow }}\",
-            \"run_id\": \"${{ github.run_id }}\",
-            \"project_id\": \"${{ env.PROJECT_ID }}\",
-            \"trigger\": \"${{ github.event_name }}\"
-          }" > logs/metadata.json
+          sudo apt-get update
+          sudo apt-get install -y cleartool
+          echo "Installing sdev_shared..."
+          # Add installation commands for sdev_shared here
 
-      - name: Upload Logs and Metadata
+      - name: Capture start time
+        id: start-time
+        run: echo "time=$(date +%s)" >> $GITHUB_OUTPUT
+
+  action-one:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Action One
+        id: action-one
+        run: |
+          mkdir -p ${{ env.LOG_DIR }}
+          {
+            echo "Action One started at $(date)"
+            echo "Processing Action One..."
+            echo "Action One completed at $(date)"
+          } | tee ${{ env.LOG_DIR }}/action-one.log
+        continue-on-error: false
+
+      - name: Upload Action One Logs
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ github.run_id }}
-          path: logs/
+          name: action-one-logs
+          path: ${{ env.LOG_DIR }}/action-one.log
+
+  finalize:
+    runs-on: ubuntu-latest
+    needs: [setup, action-one]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Capture end time and duration
+        id: end-time
+        run: |
+          end_time=$(date +%s)
+          start_time=${{ needs.setup.outputs.start-time }}
+          duration=$((end_time - start_time))
+          echo "Workflow started at: $(date -d @$start_time)" >> ${{ env.LOG_DIR }}/timing.log
+          echo "Workflow ended at: $(date -d @$end_time)" >> ${{ env.LOG_DIR }}/timing.log
+          echo "Total duration: ${duration}s" >> ${{ env.LOG_DIR }}/timing.log
+
+      - name: Upload Timing Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-timing
+          path: ${{ env.LOG_DIR }}/timing.log
+
+      - name: Store Logs Permanently
+        run: |
+          mkdir -p ${{ env.PERMANENT_STORAGE }}/logs/${{ github.run_id }}
+          cp -r ${{ env.LOG_DIR }}/* ${{ env.PERMANENT_STORAGE }}/logs/${{ github.run_id }}/
+
+      - name: Store Metadata Permanently
+        run: |
+          mkdir -p ${{ env.PERMANENT_STORAGE }}/metadata/${{ github.run_id }}
+          echo "Project: ${{ github.event.inputs.project }}" > metadata.json
+          echo "Run ID: ${{ github.run_id }}" >> metadata.json
+          echo "Status: ${{ job.status }}" >> metadata.json
+          cp metadata.json ${{ env.PERMANENT_STORAGE }}/metadata/${{ github.run_id }}/
+
+      - name: Live Logging with Verbosity
+        run: |
+          if [ "${{ github.event.inputs.verbosity }}" = "debug" ]; then
+            cat ${{ env.LOG_DIR }}/action-one.log
+            cat ${{ env.LOG_DIR }}/timing.log
+          fi
+
+  status-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'repository_dispatch'
+    steps:
+      - name: Check Instance Status
+        run: |
+          echo "Fetching status for Run ID: ${{ github.event.client_payload.run_id }}"
+          if [ -f "${{ env.PERMANENT_STORAGE }}/metadata/${{ github.event.client_payload.run_id }}/metadata.json" ]; then
+            cat ${{ env.PERMANENT_STORAGE }}/metadata/${{ github.event.client_payload.run_id }}/metadata.json
+          else
+            echo "No metadata found for the provided Run ID."
+          fi
