@@ -1,0 +1,53 @@
+name: CI with Comprehensive Logging
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: 'Project Identifier'
+        required: true
+        default: 'unknown'
+
+env:
+  LOG_LEVEL: DEBUG  # Change as needed (DEBUG, INFO, WARN, ERROR)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ github.event.inputs.project_id }}
+      LOG_DIR: logs
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: ./scripts/log-wrapper.sh "install" npm install
+
+      - name: Run Tests
+        run: ./scripts/log-wrapper.sh "test" npm test
+
+      - name: Run Build
+        run: ./scripts/log-wrapper.sh "build" npm run build
+
+      - name: Save Workflow Metadata
+        run: |
+          echo "{
+            \"workflow\": \"${{ github.workflow }}\",
+            \"run_id\": \"${{ github.run_id }}\",
+            \"project_id\": \"${{ env.PROJECT_ID }}\",
+            \"trigger\": \"${{ github.event_name }}\"
+          }" > logs/metadata.json
+
+      - name: Upload Logs and Metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ github.run_id }}
+          path: logs/
