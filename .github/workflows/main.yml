@@ -26,13 +26,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cleartool
-          echo "Installing sdev_shared..."
-          # Add installation commands for sdev_shared here
-
       - name: Capture start time
         id: start-time
         run: echo "time=$(date +%s)" >> $GITHUB_OUTPUT
