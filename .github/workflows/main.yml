@@ -13,9 +13,6 @@ on:
   repository_dispatch:
     types: [trigger-instance]
 
-env:
-  LOG_BASE_DIR: logs
-
 jobs:
   setup:
     runs-on: ubuntu-latest
@@ -32,18 +29,21 @@ jobs:
   action-one:
     runs-on: ubuntu-latest
     needs: setup
-    env:
-      ACTION_LOG_DIR: "${{ env.LOG_BASE_DIR }}/action-one"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Prepare logs directory for Action One
-        run: mkdir -p "${{ env.ACTION_LOG_DIR }}"
+        run: |
+          ACTION_LOG_DIR="logs/action-one"
+          mkdir -p "$ACTION_LOG_DIR"
 
       - name: Run Action One and log details
         id: action-one
         run: |
+          ACTION_LOG_DIR="logs/action-one"
+          LOG_FILE="$ACTION_LOG_DIR/action-one-details.log"
+          mkdir -p "$ACTION_LOG_DIR"
           {
             echo "--- Action One Log ---"
             echo "Project: ${{ github.event.inputs.project }}"
@@ -54,59 +54,59 @@ jobs:
             echo "Processing Action One..."
             echo "End Time: $(date)"
             echo "Status: Completed"
-          } | tee "${{ env.ACTION_LOG_DIR }}/action-one-details.log"
+          } | tee "$LOG_FILE"
         continue-on-error: false
+
+      - name: Upload Consolidated Log File
+        uses: actions/upload-artifact@v4
+        with:
+          name: action-one-details
+          path: logs/action-one/action-one-details.log
 
   finalize:
     runs-on: ubuntu-latest
     needs: [setup, action-one]
-    env:
-      FINAL_LOG_DIR: "${{ env.LOG_BASE_DIR }}/action-one"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download Artifacts from Previous Jobs
+      - name: Download Consolidated Log Artifact
         uses: actions/download-artifact@v4
+        with:
+          name: action-one-details
 
-      - name: Ensure action folder exists
-        run: mkdir -p "${{ env.FINAL_LOG_DIR }}"
-
-      - name: Capture end time and duration
-        id: end-time
+      - name: Append timing and metadata to log file
         run: |
+          LOG_FILE="logs/action-one/action-one-details.log"
           end_time=$(date +%s)
           start_time="${{ needs.setup.outputs.start-time }}"
           duration=$((end_time - start_time))
+
           {
+            echo "--- Workflow Timing ---"
             echo "Workflow Start Time: $(date -d @$start_time)"
             echo "Workflow End Time: $(date -d @$end_time)"
             echo "Total Duration: ${duration}s"
-          } >> "${{ env.FINAL_LOG_DIR }}/action-one-details.log"
-
-      - name: Append metadata to single log file
-        run: |
-          {
             echo "--- Metadata ---"
             echo "Project: ${{ github.event.inputs.project }}"
             echo "Run ID: ${{ github.run_id }}"
             echo "Status: ${{ job.status }}"
             echo "Triggered by: ${{ github.triggering_actor }}"
             echo "Verbosity Level: ${{ github.event.inputs.verbosity }}"
-          } >> "${{ env.FINAL_LOG_DIR }}/action-one-details.log"
+          } >> "$LOG_FILE"
 
-      - name: Upload Consolidated Log File
+      - name: Re-upload Final Consolidated Log
         uses: actions/upload-artifact@v4
         with:
           name: action-one-details
-          path: "${{ env.FINAL_LOG_DIR }}/action-one-details.log"
+          path: logs/action-one/action-one-details.log
 
       - name: Live Logging with Verbosity
+        if: ${{ github.event.inputs.verbosity == 'debug' }}
         run: |
-          if [ "${{ github.event.inputs.verbosity }}" = "debug" ]; then
-            echo "--- Live Log Preview ---"
-            cat "${{ env.FINAL_LOG_DIR }}/action-one-details.log"
-          fi
+          LOG_FILE="logs/action-one/action-one-details.log"
+          echo "--- Live Log Preview ---"
+          cat "$LOG_FILE"
 
   status-check:
     runs-on: ubuntu-latest
@@ -119,9 +119,10 @@ jobs:
 
       - name: Display Instance Status
         run: |
-          if [ -f "${{ env.LOG_BASE_DIR }}/action-one/action-one-details.log" ]; then
+          LOG_FILE="logs/action-one/action-one-details.log"
+          if [ -f "$LOG_FILE" ]; then
             echo "--- Retrieved Log Content ---"
-            cat "${{ env.LOG_BASE_DIR }}/action-one/action-one-details.log"
+            cat "$LOG_FILE"
           else
             echo "No log found for the provided Run ID."
           fi
