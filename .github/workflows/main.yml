@@ -28,7 +28,7 @@ jobs:
 
       - name: Capture start time
         id: start-time
-        run: echo "time=$(date +%s)" >> $GITHUB_OUTPUT
+        run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
 
   action-one:
     runs-on: ubuntu-latest
@@ -40,19 +40,19 @@ jobs:
       - name: Run Action One
         id: action-one
         run: |
-          mkdir -p ${{ env.LOG_DIR }}
+          mkdir -p "${{ env.LOG_DIR }}"
           {
             echo "Action One started at $(date)"
             echo "Processing Action One..."
             echo "Action One completed at $(date)"
-          } | tee ${{ env.LOG_DIR }}/action-one.log
+          } | tee "${{ env.LOG_DIR }}/action-one.log"
         continue-on-error: false
 
       - name: Upload Action One Logs
         uses: actions/upload-artifact@v4
         with:
           name: action-one-logs
-          path: ${{ env.LOG_DIR }}/action-one.log
+          path: "${{ env.LOG_DIR }}/action-one.log"
 
   finalize:
     runs-on: ubuntu-latest
@@ -61,40 +61,47 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Create logs directory
+        run: mkdir -p "${{ env.LOG_DIR }}"
+
       - name: Capture end time and duration
         id: end-time
         run: |
           end_time=$(date +%s)
-          start_time=${{ needs.setup.outputs.start-time }}
+          start_time="${{ needs.setup.outputs.start-time }}"
           duration=$((end_time - start_time))
-          echo "Workflow started at: $(date -d @$start_time)" >> ${{ env.LOG_DIR }}/timing.log
-          echo "Workflow ended at: $(date -d @$end_time)" >> ${{ env.LOG_DIR }}/timing.log
-          echo "Total duration: ${duration}s" >> ${{ env.LOG_DIR }}/timing.log
+          {
+            echo "Workflow started at: $(date -d @$start_time)"
+            echo "Workflow ended at: $(date -d @$end_time)"
+            echo "Total duration: ${duration}s"
+          } >> "${{ env.LOG_DIR }}/timing.log"
 
       - name: Upload Timing Logs
         uses: actions/upload-artifact@v4
         with:
           name: workflow-timing
-          path: ${{ env.LOG_DIR }}/timing.log
+          path: "${{ env.LOG_DIR }}/timing.log"
 
       - name: Store Logs Permanently
         run: |
-          mkdir -p ${{ env.PERMANENT_STORAGE }}/logs/${{ github.run_id }}
-          cp -r ${{ env.LOG_DIR }}/* ${{ env.PERMANENT_STORAGE }}/logs/${{ github.run_id }}/
+          mkdir -p "${{ env.PERMANENT_STORAGE }}/logs/${{ github.run_id }}"
+          cp -r "${{ env.LOG_DIR }}"/* "${{ env.PERMANENT_STORAGE }}/logs/${{ github.run_id }}/"
 
       - name: Store Metadata Permanently
         run: |
-          mkdir -p ${{ env.PERMANENT_STORAGE }}/metadata/${{ github.run_id }}
-          echo "Project: ${{ github.event.inputs.project }}" > metadata.json
-          echo "Run ID: ${{ github.run_id }}" >> metadata.json
-          echo "Status: ${{ job.status }}" >> metadata.json
-          cp metadata.json ${{ env.PERMANENT_STORAGE }}/metadata/${{ github.run_id }}/
+          mkdir -p "${{ env.PERMANENT_STORAGE }}/metadata/${{ github.run_id }}"
+          {
+            echo "Project: ${{ github.event.inputs.project }}"
+            echo "Run ID: ${{ github.run_id }}"
+            echo "Status: ${{ job.status }}"
+          } > metadata.json
+          cp metadata.json "${{ env.PERMANENT_STORAGE }}/metadata/${{ github.run_id }}/"
 
       - name: Live Logging with Verbosity
         run: |
           if [ "${{ github.event.inputs.verbosity }}" = "debug" ]; then
-            cat ${{ env.LOG_DIR }}/action-one.log
-            cat ${{ env.LOG_DIR }}/timing.log
+            cat "${{ env.LOG_DIR }}/action-one.log"
+            cat "${{ env.LOG_DIR }}/timing.log"
           fi
 
   status-check:
@@ -104,8 +111,9 @@ jobs:
       - name: Check Instance Status
         run: |
           echo "Fetching status for Run ID: ${{ github.event.client_payload.run_id }}"
-          if [ -f "${{ env.PERMANENT_STORAGE }}/metadata/${{ github.event.client_payload.run_id }}/metadata.json" ]; then
-            cat ${{ env.PERMANENT_STORAGE }}/metadata/${{ github.event.client_payload.run_id }}/metadata.json
+          metadata_file="${{ env.PERMANENT_STORAGE }}/metadata/${{ github.event.client_payload.run_id }}/metadata.json"
+          if [ -f "$metadata_file" ]; then
+            cat "$metadata_file"
           else
             echo "No metadata found for the provided Run ID."
           fi
