@@ -15,7 +15,6 @@ on:
 
 env:
   LOG_DIR: logs
-  PERMANENT_STORAGE: /mnt/data/storage  # Replace with your actual storage solution
 
 jobs:
   setup:
@@ -61,6 +60,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Download Artifacts from Previous Jobs
+        uses: actions/download-artifact@v4
+
       - name: Create logs directory
         run: mkdir -p "${{ env.LOG_DIR }}"
 
@@ -82,38 +84,42 @@ jobs:
           name: workflow-timing
           path: "${{ env.LOG_DIR }}/timing.log"
 
-      - name: Store Logs Permanently
+      - name: Upload Metadata
         run: |
-          mkdir -p "${{ env.PERMANENT_STORAGE }}/logs/${{ github.run_id }}"
-          cp -r "${{ env.LOG_DIR }}"/* "${{ env.PERMANENT_STORAGE }}/logs/${{ github.run_id }}/"
-
-      - name: Store Metadata Permanently
-        run: |
-          mkdir -p "${{ env.PERMANENT_STORAGE }}/metadata/${{ github.run_id }}"
+          mkdir -p "${{ env.LOG_DIR }}/metadata"
           {
             echo "Project: ${{ github.event.inputs.project }}"
             echo "Run ID: ${{ github.run_id }}"
             echo "Status: ${{ job.status }}"
-          } > metadata.json
-          cp metadata.json "${{ env.PERMANENT_STORAGE }}/metadata/${{ github.run_id }}/"
+          } > "${{ env.LOG_DIR }}/metadata/metadata.json"
+        
+      - name: Upload Metadata Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-metadata
+          path: "${{ env.LOG_DIR }}/metadata/metadata.json"
 
       - name: Live Logging with Verbosity
         run: |
           if [ "${{ github.event.inputs.verbosity }}" = "debug" ]; then
-            cat "${{ env.LOG_DIR }}/action-one.log"
-            cat "${{ env.LOG_DIR }}/timing.log"
+            cat "${{ env.LOG_DIR }}/action-one.log" || echo "No action-one log found."
+            cat "${{ env.LOG_DIR }}/timing.log" || echo "No timing log found."
           fi
 
   status-check:
     runs-on: ubuntu-latest
     if: github.event_name == 'repository_dispatch'
     steps:
+      - name: Download Metadata Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: workflow-metadata
+
       - name: Check Instance Status
         run: |
-          echo "Fetching status for Run ID: ${{ github.event.client_payload.run_id }}"
-          metadata_file="${{ env.PERMANENT_STORAGE }}/metadata/${{ github.event.client_payload.run_id }}/metadata.json"
-          if [ -f "$metadata_file" ]; then
-            cat "$metadata_file"
+          if [ -f "metadata/metadata.json" ]; then
+            echo "Fetched Metadata:"
+            cat "metadata/metadata.json"
           else
             echo "No metadata found for the provided Run ID."
           fi
