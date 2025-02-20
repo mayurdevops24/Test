@@ -55,10 +55,10 @@ jobs:
           } | tee "$LOG_FILE"
         continue-on-error: false
 
-      - name: Upload Consolidated Log File
+      - name: Upload Consolidated Log File (Initial)
         uses: actions/upload-artifact@v4
         with:
-          name: action-one-details
+          name: action-one-initial-log
           path: logs/action-one/action-one-details.log
 
   finalize:
@@ -68,10 +68,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download Consolidated Log Artifact
+      - name: Download Initial Log Artifact
         uses: actions/download-artifact@v4
         with:
-          name: action-one-details
+          name: action-one-initial-log
 
       - name: Ensure log file exists before appending
         run: |
@@ -99,10 +99,10 @@ jobs:
             echo "Verbosity Level: ${{ github.event.inputs.verbosity }}"
           } >> "$LOG_FILE"
 
-      - name: Re-upload Final Consolidated Log
+      - name: Upload Final Consolidated Log
         uses: actions/upload-artifact@v4
         with:
-          name: action-one-details
+          name: action-one-final-log
           path: logs/action-one/action-one-details.log
 
       - name: Live Logging with Verbosity
@@ -116,10 +116,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'repository_dispatch'
     steps:
-      - name: Download Consolidated Log
+      - name: Download Final Consolidated Log
         uses: actions/download-artifact@v4
         with:
-          name: action-one-details
+          name: action-one-final-log
 
       - name: Display Instance Status
         run: |
