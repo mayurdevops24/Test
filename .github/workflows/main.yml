@@ -14,7 +14,7 @@ on:
     types: [trigger-instance]
 
 env:
-  LOG_DIR: logs/all-details
+  LOG_BASE_DIR: logs
 
 jobs:
   setup:
@@ -25,9 +25,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create unified logs directory
-        run: mkdir -p "${{ env.LOG_DIR }}"
-
       - name: Capture start time
         id: start-time
         run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
@@ -35,24 +32,36 @@ jobs:
   action-one:
     runs-on: ubuntu-latest
     needs: setup
+    env:
+      ACTION_LOG_DIR: "${{ env.LOG_BASE_DIR }}/action-one"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run Action One
+      - name: Prepare logs directory for Action One
+        run: mkdir -p "${{ env.ACTION_LOG_DIR }}"
+
+      - name: Run Action One and log details
         id: action-one
         run: |
-          mkdir -p "${{ env.LOG_DIR }}"
           {
-            echo "Action One started at $(date)"
+            echo "--- Action One Log ---"
+            echo "Project: ${{ github.event.inputs.project }}"
+            echo "Run ID: ${{ github.run_id }}"
+            echo "Action: action-one"
+            echo "Status: Running"
+            echo "Start Time: $(date)"
             echo "Processing Action One..."
-            echo "Action One completed at $(date)"
-          } | tee "${{ env.LOG_DIR }}/action-one.log"
+            echo "End Time: $(date)"
+            echo "Status: Completed"
+          } | tee "${{ env.ACTION_LOG_DIR }}/action-one-details.log"
         continue-on-error: false
 
   finalize:
     runs-on: ubuntu-latest
     needs: [setup, action-one]
+    env:
+      FINAL_LOG_DIR: "${{ env.LOG_BASE_DIR }}/action-one"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -60,8 +69,8 @@ jobs:
       - name: Download Artifacts from Previous Jobs
         uses: actions/download-artifact@v4
 
-      - name: Ensure unified logs directory exists
-        run: mkdir -p "${{ env.LOG_DIR }}"
+      - name: Ensure action folder exists
+        run: mkdir -p "${{ env.FINAL_LOG_DIR }}"
 
       - name: Capture end time and duration
         id: end-time
@@ -70,50 +79,49 @@ jobs:
           start_time="${{ needs.setup.outputs.start-time }}"
           duration=$((end_time - start_time))
           {
-            echo "Workflow started at: $(date -d @$start_time)"
-            echo "Workflow ended at: $(date -d @$end_time)"
-            echo "Total duration: ${duration}s"
-          } >> "${{ env.LOG_DIR }}/timing.log"
+            echo "Workflow Start Time: $(date -d @$start_time)"
+            echo "Workflow End Time: $(date -d @$end_time)"
+            echo "Total Duration: ${duration}s"
+          } >> "${{ env.FINAL_LOG_DIR }}/action-one-details.log"
 
-      - name: Create metadata file
+      - name: Append metadata to single log file
         run: |
           {
+            echo "--- Metadata ---"
             echo "Project: ${{ github.event.inputs.project }}"
             echo "Run ID: ${{ github.run_id }}"
             echo "Status: ${{ job.status }}"
-          } > "${{ env.LOG_DIR }}/metadata.json"
+            echo "Triggered by: ${{ github.triggering_actor }}"
+            echo "Verbosity Level: ${{ github.event.inputs.verbosity }}"
+          } >> "${{ env.FINAL_LOG_DIR }}/action-one-details.log"
 
-      - name: Upload All Logs and Metadata as Single Artifact
+      - name: Upload Consolidated Log File
         uses: actions/upload-artifact@v4
         with:
-          name: all-workflow-details
-          path: "${{ env.LOG_DIR }}"
+          name: action-one-details
+          path: "${{ env.FINAL_LOG_DIR }}/action-one-details.log"
 
       - name: Live Logging with Verbosity
         run: |
           if [ "${{ github.event.inputs.verbosity }}" = "debug" ]; then
-            echo "--- Action One Log ---"
-            cat "${{ env.LOG_DIR }}/action-one.log" || echo "No action-one log found."
-            echo "--- Timing Log ---"
-            cat "${{ env.LOG_DIR }}/timing.log" || echo "No timing log found."
-            echo "--- Metadata ---"
-            cat "${{ env.LOG_DIR }}/metadata.json" || echo "No metadata found."
+            echo "--- Live Log Preview ---"
+            cat "${{ env.FINAL_LOG_DIR }}/action-one-details.log"
           fi
 
   status-check:
     runs-on: ubuntu-latest
     if: github.event_name == 'repository_dispatch'
     steps:
-      - name: Download All Workflow Details
+      - name: Download Consolidated Log
         uses: actions/download-artifact@v4
         with:
-          name: all-workflow-details
+          name: action-one-details
 
-      - name: Check Instance Status
+      - name: Display Instance Status
         run: |
-          if [ -f "${{ env.LOG_DIR }}/metadata.json" ]; then
-            echo "Fetched Metadata:"
-            cat "${{ env.LOG_DIR }}/metadata.json"
+          if [ -f "${{ env.LOG_BASE_DIR }}/action-one/action-one-details.log" ]; then
+            echo "--- Retrieved Log Content ---"
+            cat "${{ env.LOG_BASE_DIR }}/action-one/action-one-details.log"
           else
-            echo "No metadata found for the provided Run ID."
+            echo "No log found for the provided Run ID."
           fi
