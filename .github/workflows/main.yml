@@ -35,15 +35,13 @@ jobs:
 
       - name: Prepare logs directory for Action One
         run: |
-          ACTION_LOG_DIR="logs/action-one"
-          mkdir -p "$ACTION_LOG_DIR"
+          mkdir -p logs/action-one
 
       - name: Run Action One and log details
         id: action-one
         run: |
-          ACTION_LOG_DIR="logs/action-one"
-          LOG_FILE="$ACTION_LOG_DIR/action-one-details.log"
-          mkdir -p "$ACTION_LOG_DIR"
+          LOG_FILE="logs/action-one/action-one-details.log"
+          mkdir -p "$(dirname "$LOG_FILE")"
           {
             echo "--- Action One Log ---"
             echo "Project: ${{ github.event.inputs.project }}"
@@ -74,6 +72,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: action-one-details
+
+      - name: Ensure log file exists before appending
+        run: |
+          LOG_FILE="logs/action-one/action-one-details.log"
+          mkdir -p "$(dirname "$LOG_FILE")"
+          touch "$LOG_FILE"
 
       - name: Append timing and metadata to log file
         run: |
